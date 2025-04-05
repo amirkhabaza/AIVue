@@ -32,6 +32,7 @@ class HeadGazeTracker:
         else:
             print(f"{platform.system()} detected.")
 
+        # Initialize MediaPipe Face Mesh
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=1,
@@ -40,11 +41,13 @@ class HeadGazeTracker:
             min_tracking_confidence=0.6
         )
 
+        # Eye landmarks for EAR
         self.LEFT_EYE_V = [159, 145]
         self.RIGHT_EYE_V = [386, 374]
         self.LEFT_EYE_H = [33, 133]
         self.RIGHT_EYE_H = [362, 263]
 
+        # Get screen dimensions automatically
         try:
             self.screen_width, self.screen_height = pyautogui.size()
             print(f"Screen resolution: {self.screen_width}x{self.screen_height}")
@@ -55,6 +58,7 @@ class HeadGazeTracker:
         pyautogui.FAILSAFE = False
         pyautogui.PAUSE = 0
 
+        # Calibration settings
         self.calibration_points = [
             (0.1, 0.1), (0.5, 0.1), (0.9, 0.1),
             (0.1, 0.5), (0.5, 0.5), (0.9, 0.5),
@@ -65,6 +69,7 @@ class HeadGazeTracker:
         self.calibration_matrix = None
         self.reference_head_pose = None
 
+        # --- Kalman Filter Setup ---
         self.kf = KalmanFilter(dim_x=4, dim_z=2)
         self.kf.x = np.array([[self.screen_width / 2],
                               [self.screen_height / 2],
@@ -85,6 +90,7 @@ class HeadGazeTracker:
         self.kf.P = np.eye(4) * 500.
         self.last_time = time.time()
 
+        # --- Wink Detection ---
         self.EAR_THRESHOLD = 0.20
         self.WINK_CONSEC_FRAMES = 2
         self.CLICK_COOLDOWN = 0.5
@@ -97,6 +103,7 @@ class HeadGazeTracker:
         self.last_right_click_time = 0
         self.last_left_wink_detect_time = 0
 
+        # --- Raw Pose Smoothing ---
         self.smooth_yaw = 0.0
         self.smooth_pitch = 0.0
         self.pose_smoothing_factor = 0.6
@@ -230,6 +237,20 @@ class HeadGazeTracker:
             return (self.smooth_yaw if not self.first_pose else ref_pose[0],
                     self.smooth_pitch if not self.first_pose else ref_pose[1])
 
+    def custom_calibration(self):
+        """
+        This is your custom calibration function.
+        Replace this with your own calibration work.
+        For demonstration, it simply prints a message and sets a dummy reference pose.
+        """
+        print("Running custom calibration...")
+        # Simulate calibration work here (e.g., additional processing, logging, etc.)
+        # For example, set a dummy reference head pose.
+        self.reference_head_pose = (0.0, 0.0)
+        # You might update self.calibration_data here as needed.
+        print("Custom calibration completed. Reference head pose set to:", self.reference_head_pose)
+        return True
+
     def run_calibration(self, cap):
         baseline_pose = None
         move_threshold = 0.15  # TUNABLE
@@ -240,9 +261,16 @@ class HeadGazeTracker:
         self.reference_head_pose = None
         self.calibration_complete = False
 
+        # Call your custom calibration work first
+        if not self.custom_calibration():
+            print("Custom calibration failed. Exiting calibration process.")
+            return False
+        else:
+            print("Custom calibration succeeded, proceeding with full calibration.")
+
         # Create calibration window and force it to cover the entire screen
         calib_win_name = "Calibration Target"
-        feed_win_name = "Camera Feed (Calibration)"
+        feed_win_name ="Camera Feed (Calibration)"
         cv2.namedWindow(calib_win_name, cv2.WINDOW_NORMAL)
         cv2.moveWindow(calib_win_name, 0, 0)
         cv2.resizeWindow(calib_win_name, self.screen_width, self.screen_height)
@@ -266,8 +294,8 @@ class HeadGazeTracker:
         neutral_data_raw = []
         calib_img = np.zeros((actual_h, actual_w, 3), dtype=np.uint8)
         center_x, center_y = actual_w // 2, actual_h // 2
-        cv2.circle(calib_img, (center_x, center_y), 20, (0, 0, 255), 2)
-        cv2.circle(calib_img, (center_x, center_y), 8, (0, 255, 0), -1)
+        cv2.circle(calib_img, (center_x, center_y), 20, (203, 192, 255), 2)
+        cv2.circle(calib_img, (center_x, center_y), 8, (255, 0, 0), -1)
         cv2.putText(calib_img, "Look Here (Neutral)", (center_x - 100, center_y - 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         cv2.imshow(calib_win_name, calib_img)
@@ -352,9 +380,11 @@ class HeadGazeTracker:
                 results = self.face_mesh.process(frame_rgb)
                 frame.flags.writeable = True
 
-                point_img = np.zeros((actual_h, actual_w, 3), dtype=np.uint8)
-                cv2.circle(point_img, (target_x, target_y), 20, (0, 0, 255), 2)
-                cv2.circle(point_img, (target_x, target_y), 8, (0, 255, 0), -1)
+                # point_img = np.zeros((actual_h, actual_w, 3), dtype=np.uint8)
+                background_color = (255, 255, 255)
+                point_img = np.full((actual_h, actual_w, 3), background_color, dtype=np.uint8)
+                cv2.circle(point_img, (target_x, target_y), 20,(203, 192, 255), 2)
+                cv2.circle(point_img, (target_x, target_y), 8, (255, 0, 0), -1)
                 cv2.putText(point_img, f"Look Here ({i+1})",
                             (target_x - 50 if target_x > 50 else 5, target_y - 30 if target_y > 30 else 15),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -366,12 +396,11 @@ class HeadGazeTracker:
                 bar_width = 100
                 bar_height = 10
                 bar_x = target_x - bar_width // 2
-                bar_y = target_y + 30
+                bar_y = target_y + 60
                 filled_width = int(bar_width * progress_fraction)
                 cv2.rectangle(point_img, (bar_x, bar_y), (bar_x + filled_width, bar_y + bar_height), (0, 255, 0), -1)
                 cv2.rectangle(point_img, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (255, 255, 255), 1)
-                cv2.putText(point_img, "Stay still", (bar_x, bar_y - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                cv2.putText(point_img, "Stay still", (bar_x + 12, bar_y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
                 cv2.imshow(calib_win_name, point_img)
 
