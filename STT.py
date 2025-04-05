@@ -7,9 +7,11 @@ import pyautogui
 import sys
 import os
 import time
+from pathlib import Path
+
 
 # --- Configuration ---
-MODEL_PATH = "/Users/amirkhabaza/Downloads/Quick/AIVue-main/vosk-model-en-us-0.42-gigaspeech"
+MODEL_PATH = "/Users/amirkhabaza/Quick/CUA_Project/vosk-model-en-us-0.42-gigaspeech"
 SAMPLE_RATE = 16000
 DEVICE_ID = 0
 BLOCK_SIZE = 8000
@@ -24,23 +26,38 @@ model = None
 processing_thread = None
 typing_thread = None
 
+
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "vosk-model-en-us-0.42-gigaspeech"
+
 # --- Vosk Model Loading ---
+
+
 def load_vosk_model():
     global model
-    if not os.path.exists(MODEL_PATH):
-        print(f"ERROR: Vosk model folder not found at '{MODEL_PATH}'")
+
+    # Ensure path is a string, not a PosixPath object
+    from pathlib import Path
+    raw_model_path = Path(
+        "/Users/amirkhabaza/Downloads/Quick/CUA_Project/vosk-model-en-us-0.42-gigaspeech")
+    model_path_str = str(raw_model_path)
+
+    if not os.path.exists(model_path_str):
+        print(f"ERROR: Vosk model folder not found at '{model_path_str}'")
         print("Please download a model from https://alphacephei.com/vosk/models")
         return False
+
     try:
-        print(f"Loading Vosk model from: {MODEL_PATH}")
-        model = vosk.Model(MODEL_PATH)
+        print(f"Loading Vosk model from: {model_path_str}")
+        model = vosk.Model(model_path_str)  # MUST be a string
         print("Vosk model loaded successfully.")
         return True
     except Exception as e:
         print(f"Error loading Vosk model: {e}")
         return False
-
 # --- Audio Callback ---
+
+
 def audio_callback(indata, frames, time_info, status):
     if status:
         print(status, file=sys.stderr)
@@ -51,6 +68,8 @@ def audio_callback(indata, frames, time_info, status):
             print(f"Error putting data into queue: {e}")
 
 # --- Audio Processing Thread ---
+
+
 def process_audio():
     global recognizer, is_recording
     if recognizer is None:
@@ -109,6 +128,8 @@ def process_audio():
     result_queue.put(None)
 
 # --- Typing Thread ---
+
+
 def type_results():
     global is_recording
     print("Typing thread started.")
@@ -150,6 +171,8 @@ def type_results():
     print("Typing thread finished.")
 
 # --- Toggle Recording (Command-Line Based) ---
+
+
 def toggle_recording():
     global is_recording, stream, processing_thread, typing_thread, recognizer, model
     if not is_recording:
@@ -174,7 +197,8 @@ def toggle_recording():
             is_recording = True
 
             try:
-                sd.check_input_settings(device=DEVICE_ID, samplerate=SAMPLE_RATE, channels=1)
+                sd.check_input_settings(
+                    device=DEVICE_ID, samplerate=SAMPLE_RATE, channels=1)
             except Exception as e:
                 print(f"Error checking input device settings: {e}")
                 is_recording = False
@@ -192,7 +216,8 @@ def toggle_recording():
             stream.start()
             print("Recording started...")
 
-            processing_thread = threading.Thread(target=process_audio, daemon=True)
+            processing_thread = threading.Thread(
+                target=process_audio, daemon=True)
             typing_thread = threading.Thread(target=type_results, daemon=True)
             processing_thread.start()
             typing_thread.start()
@@ -205,7 +230,8 @@ def toggle_recording():
                     stream.stop()
                     stream.close()
                 except Exception as e_close:
-                    print(f"Error closing stream during start error: {e_close}")
+                    print(
+                        f"Error closing stream during start error: {e_close}")
             stream = None
             recognizer = None
     else:
@@ -228,6 +254,8 @@ def toggle_recording():
         recognizer = None
 
 # --- Main Execution ---
+
+
 def main():
     global model
     if load_vosk_model():
@@ -248,5 +276,18 @@ def main():
         else:
             print("Unknown command. Please enter 'r' or 'q'.")
 
+
+model = None  # global variabl e
+
+
+def initialize_model():
+    global model
+    if load_vosk_model():
+        print("vosk model loaded.")
+    else:
+        print("Failed")
+
+
 if __name__ == "__main__":
+    initialize_model()
     main()

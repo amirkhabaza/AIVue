@@ -7,9 +7,11 @@ elif platform.system() == "Windows":
 else:
     from element_detector_demo import HeadGazeTracker  # Fallback for other OSes
 
+
 def main():
     tracker = HeadGazeTracker()
     tracker.start_tracking()
+
 
 if __name__ == "__main__":
     main()
